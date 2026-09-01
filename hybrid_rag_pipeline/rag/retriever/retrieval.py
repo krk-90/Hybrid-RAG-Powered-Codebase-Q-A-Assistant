@@ -11,7 +11,8 @@ from langchain_community.retrievers import BM25Retriever
 from langsmith import traceable
 from langchain_core.documents import Document
 
-from ingest.processing import load_docs,chunk_docs
+from hybrid_rag_pipeline.ingest.processing import load_docs, chunk_docs
+from hybrid_rag_pipeline.rag.retriever.rerank import wrap_with_reranking
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
@@ -37,7 +38,7 @@ def get_vector():
         collection_name=COLLECTION_NAME,
         embedding_function=embeddings
     )
-
+@traceable(name="get embedded text")
 def get_embedded_text(limit:int = None,include_embeddings:bool = False, batch_size: int = 100, verbose: bool = True):
     client = chromadb.CloudClient(
             api_key=os.environ["CHROMA_API_KEY"],
@@ -83,6 +84,7 @@ def get_embedded_text(limit:int = None,include_embeddings:bool = False, batch_si
         **({"embeddings": all_embeds} if include_embeddings else {}),
     }
 
+@traceable(name="get BM25 docs")
 def _get_bm25_docs(force_refresh: bool = False):
     global _bm25_docs_cache
     if _bm25_docs_cache is None or force_refresh:
@@ -93,23 +95,32 @@ def _get_bm25_docs(force_refresh: bool = False):
         ]
     return _bm25_docs_cache
 
-def retrieve(k: int = 4, refresh_bm25: bool = False):
+@traceable(name="retrieve and rerank")
+def retrieve(k: int = 4, refresh_bm25: bool = False,fetch_k: int = None, rerank: bool = True):
+    if fetch_k is None:
+        fetch_k = max(4 * k, 20)
     vector_store = get_vector()
-    retriever = vector_store.as_retriever(search_kwargs={"k": k})
+    retriever = vector_store.as_retriever(search_kwargs={"k": fetch_k if rerank else k})   
     docs = _get_bm25_docs(force_refresh=refresh_bm25)
     bm25 = BM25Retriever.from_documents(docs)
-    bm25.k = k
+    bm25.k = fetch_k if rerank else k
 
     ensemble_retriever = EnsembleRetriever(
         retrievers=[retriever, bm25],
         weights=[0.4, 0.6],
     )
-    return ensemble_retriever
+    if not rerank:
+        return ensemble_retriever
+    return wrap_with_reranking(ensemble_retriever,top_n=k)
 
 def main():
     parser = argparse.ArgumentParser(description="Query or inspect the RAG vector store")
     parser.add_argument("--query", type=str, help="Query text to retrieve relevant chunks for")
-    parser.add_argument("--k", type=int, default=4, help="Number of results to retrieve (default: 4)")
+    parser.add_argument("--k", type=int, default=4, help="Number of final results after reranking (default: 4)")
+    parser.add_argument("--fetch-k", type=int, default=None,
+                         help="Number of candidates to fetch from vector+BM25 before reranking (default: 4*k, min 20)")
+    parser.add_argument("--no-rerank", action="store_true",
+                         help="Disable reranking and return raw ensemble retriever results")
     parser.add_argument("--refresh-bm25", action="store_true",
                          help="Force-refresh the BM25 index from Chroma before querying")
     parser.add_argument("--inspect", action="store_true",
@@ -118,14 +129,19 @@ def main():
                          help="Limit number of documents fetched when using --inspect")
     parser.add_argument("--json", action="store_true",
                          help="Output retrieved results as JSON instead of pretty-printed text")
-
     args = parser.parse_args()
     if args.inspect:
         get_embedded_text(limit=args.limit, verbose=True)
         return
     if not args.query:
         parser.error("--query is required unless --inspect is set")
-    retriever = retrieve(k=args.k, refresh_bm25=args.refresh_bm25)
+ 
+    retriever = retrieve(
+        k=args.k,
+        refresh_bm25=args.refresh_bm25,
+        fetch_k=args.fetch_k,
+        rerank=not args.no_rerank,
+    )
     results = retriever.invoke(args.query)
     if args.json:
         payload = [
@@ -138,6 +154,6 @@ def main():
             print(f"[{i}] {doc.metadata}")
             print(doc.page_content[:300].strip())
             print("-" * 40)
-
+ 
 if __name__ == "__main__":
     main()
