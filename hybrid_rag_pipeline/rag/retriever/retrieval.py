@@ -5,7 +5,6 @@ import chromadb
 from dotenv import load_dotenv
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
-from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_classic.retrievers.ensemble import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langsmith import traceable
