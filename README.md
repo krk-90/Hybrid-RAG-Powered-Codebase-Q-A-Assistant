@@ -208,7 +208,7 @@ python -m hybrid_rag_pipeline.main "Explain the reranking step" --show-sources
 
 ## screen shots of working CLI(processing, retrieval and generation)
 
-![chatbot demo]("screen_shots/011.png")
-![chatbot demo]("screen_shots/012.png")
-![chatbot demo]("screen_shots/013.png")
-![chatbot demo]("screen_shots/014.png")
+![chatbot demo](screen_shots/011.png)
+![chatbot demo](screen_shots/012.png)
+![chatbot demo](screen_shots/013.png)
+![chatbot demo](screen_shots/014.png)
