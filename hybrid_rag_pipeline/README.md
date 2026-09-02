@@ -193,22 +193,11 @@ python -m hybrid_rag_pipeline.main "Explain the reranking step" --show-sources
 - **Generation**: Groq `openai/gpt-oss-20b`, temperature `0.3`, streaming enabled, wrapped in a "don't hallucinate" prompt template.
 - **Observability**: All major stages (`load_docs`, `chunk_docs`, `get_vector`, `retrieve`, `ask_streaming`, etc.) are decorated with `@traceable` for LangSmith tracing.
 
-## newly Developed
+## Under Development
 
-- **FastAPI service layer** (`app.py`) — a REST API wrapping ingestion and querying, exposing this pipeline over HTTP instead of CLI-only usage. Currently implements:
-  - `GET /health` — readiness check for the LLM/retriever.
-  - `POST /ingest` — upload a file (`pdf`/`docx`/`png`/`jpg`/`txt`), chunk it, embed it, and store it in Chroma; refreshes the BM25 cache afterward. Rate-limited to 5/minute via `slowapi`.
-  - `POST /query` — ask a question against the RAG chain, optionally returning source chunks. Rate-limited to 20/minute.
-  - `POST /query/stream` — same as `/query` but streams the answer as Server-Sent Events.
-  - LLM, retriever, and RAG chain are loaded once at startup via a `lifespan` context manager and reused across requests.
-  - Still to do: authentication, persistent job queue for large ingestion batches, WebSocket alternative to SSE, and structured error handling for malformed uploads.
-
-Run it locally with:
-
-```bash
-pip install fastapi uvicorn slowapi python-multipart
-uvicorn app.backend.router:app --reload --port 8000
-```
+- **FastAPI service layer** — a REST API wrapping ingestion (`/ingest`) and querying (`/query`, streaming via SSE/WebSocket) is planned, to expose this pipeline over HTTP instead of CLI-only usage. This will likely sit alongside `main.py` as `app.py`/`api.py` and reuse `llm_setup()`, `retrieve()`, and `get_rag_chain()` directly.
+- Authentication/rate-limiting for the future API layer.
+- Async ingestion job queue for large document batches.
 
 ## Notes & Caveats
 
@@ -216,7 +205,11 @@ uvicorn app.backend.router:app --reload --port 8000
 - `GROQ_API_KEY` must be set for `main.py`; it is not required for ingestion or retrieval-only usage.
 - Ensure `.env` is not committed — it holds cloud credentials for Chroma, Google, Groq, and LangSmith.
 
-![chatbot demo](screen_shots/fastapi_ss/fa01.png)
-![chatbot demo](screen_shots/fastapi_ss/fa02.png)
-![chatbot demo](screen_shots/fastapi_ss/fa03.png)
-![chatbot demo](screen_shots/fastapi_ss/fa04.png)
+
+## screen shots of working CLI(processing, retrieval and generation)
+
+![chatbot demo](screen_shots/011.png)
+![chatbot demo](screen_shots/012.png)
+![chatbot demo](screen_shots/013.png)
+![chatbot demo](screen_shots/014.png)
+![chatbot demo](screen_shots/lstracing.png)
