@@ -71,6 +71,10 @@ def _refresh_rag_chain():
     state["retreiver"] = retrieve(refresh_bm25 =True)
     state["rag_chain"] = get_rag_chain(state["llm_model"],state["retreiver"])
 
+@app.get("/") 
+def endpoint():
+    return {"message":"your chatbot is ready for chat."}
+
 @app.get("/health")    
 def health():
     return {
