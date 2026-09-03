@@ -241,3 +241,10 @@ FastAPI service in action:
 ![fastapi demo](screen_shots/fastapi_ss/fa02.png)
 ![fastapi demo](screen_shots/fastapi_ss/fa03.png)
 ![fastapi demo](screen_shots/fastapi_ss/fa04.png)
+
+deployed on railway:
+
+![fastapi demo](screen_shots/deployed_apiss/dfss01.png)
+![fastapi demo](screen_shots/deployed_apiss/dfss02.png)
+![fastapi demo](screen_shots/deployed_apiss/dfss03.png)
+![fastapi demo](screen_shots/deployed_apiss/dfss04.png)
