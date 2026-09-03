@@ -12,8 +12,14 @@ from slowapi import Limiter ,_rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from contextlib import asynccontextmanager
-
+from langsmith import traceable
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+os.environ.setdefault("LANGCHAIN_PROJECT", "rag-tracing")
+
+if not os.environ.get("LANGCHAIN_API_KEY") and not os.environ.get("LANGSMITH_API_KEY"):
+    print("[WARN] LANGCHAIN_API_KEY / LANGSMITH_API_KEY not set — @traceable calls will not report to LangSmith.")
+
 
 from hybrid_rag_pipeline.rag.generation.main import llm_setup,get_rag_chain,ask_streaming
 from hybrid_rag_pipeline.rag.retriever.retrieval import retrieve
@@ -30,6 +36,7 @@ state:dict = {
 }
 
 @asynccontextmanager
+@traceable(name="lifespan")
 async def lifespan(app:FastAPI):
     print("startup loading LLM,retriever,and rag chain....")
     state["llm_model"] = llm_setup()
@@ -75,7 +82,8 @@ def _refresh_rag_chain():
 def endpoint():
     return {"message":"your chatbot is ready for chat."}
 
-@app.get("/health")    
+@app.get("/health")
+@traceable(name="health")
 def health():
     return {
         "llm_ready": state.get("llm_model") is not None,
@@ -85,6 +93,7 @@ def health():
 
 @app.post("/ingest",response_model=IngestResponse)
 @limiter.limit("5/minute")
+@traceable(name="ingest")
 async def ingest(request:Request,file:UploadFile = File(...)):
     ext =Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -111,6 +120,7 @@ async def ingest(request:Request,file:UploadFile = File(...)):
 
 @app.post("/query", response_model=Queryresponse)
 @limiter.limit("10/minute")
+@traceable(name="query")
 async def query(request: Request, body: Queryrequest):
     if state.get("rag_chain") is None:
         raise HTTPException(status_code=503, detail="RAG chain is not ready yet.")
@@ -129,6 +139,7 @@ async def query(request: Request, body: Queryrequest):
 
 @app.post("/query/stream")
 @limiter.limit("10/minute")
+@traceable(name="streaming_query")
 async def query_stream(request: Request, body: Queryrequest):
     if state.get("rag_chain") is None:
         raise HTTPException(status_code=503, detail="RAG chain is not ready yet.")

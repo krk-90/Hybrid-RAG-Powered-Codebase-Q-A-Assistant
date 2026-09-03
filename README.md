@@ -221,6 +221,10 @@ uvicorn app.backend.router:app --reload --port 8000
 - `GROQ_API_KEY` must be set for `main.py`; it is not required for ingestion or retrieval-only usage.
 - Ensure `.env` is not committed — it holds cloud credentials for Chroma, Google, Groq, and LangSmith.
 
+## latency
+- **average latency for FFTF:** ` 3.93s`
+- **final output is :**  `5.33s`
+
 ## Screenshots
 
 CLI in action — ingestion, retrieval, and generation:
