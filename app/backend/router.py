@@ -112,7 +112,7 @@ def endpoint():
 def health():
     return {
         "llm_ready": state.get("llm_model") is not None,
-        "retriever_ready": state.get("retriever") is not None,
+        "retriever_ready": state.get("retreiver") is not None,
         "rag_chain_ready": state.get("rag_chain") is not None,
     }
 

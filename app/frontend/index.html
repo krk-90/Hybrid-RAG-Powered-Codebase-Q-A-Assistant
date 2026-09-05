@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CODE ASSISTANT | Hybrid RAG workspace</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">T</span>
+        <div><strong>CODE ASSISTANT</strong><small>hybrid knowledge desk</small></div>
+      </div>
+
+      <div class="sidebar-block">
+        <p class="eyebrow">Workspace</p>
+        <div class="health-row"><span class="status-dot" id="health-dot"></span><span id="health-label">Checking pipeline...</span></div>
+        <p class="muted" id="health-detail">Connecting to the retrieval service.</p>
+      </div>
+
+      <div class="sidebar-block upload-block">
+        <p class="eyebrow">Add knowledge</p>
+        <label class="dropzone" id="dropzone" for="file-input">
+          <span class="upload-icon">+</span>
+          <span><strong>Drop a document</strong><small>PDF, DOCX, image, or TXT</small></span>
+          <input id="file-input" type="file" accept=".pdf,.docx,.png,.jpg,.jpeg,.txt">
+        </label>
+        <div class="upload-status" id="upload-status" aria-live="polite"></div>
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="user-card" id="user-card" hidden><span class="avatar" id="user-avatar">?</span><span class="user-email" id="user-email"></span><button class="icon-button" id="logout-button" title="Log out" aria-label="Log out">↗</button></div>
+        <button class="text-button" id="auth-button">Sign in to ask questions <span>→</span></button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar"><span class="section-label">Knowledge workspace</span><button class="help-button" title="API connection settings" aria-label="API connection settings">?</button></header>
+
+      <section class="hero">
+        <p class="eyebrow">Ask your codebase</p>
+        <h1>Find the Error<br><em>through the noise.</em></h1>
+        <p class="hero-copy">A precise way to explore your indexed documents with hybrid search, reranking, and grounded answers.</p>
+      </section>
+
+      <section class="conversation" aria-label="Conversation">
+        <div class="empty-state" id="empty-state"><span class="spark">✦</span><p>Your conversation starts here.</p><small>Ask about architecture, auth flows, or anything in your indexed knowledge.</small></div>
+        <div id="messages" class="messages"></div>
+      </section>
+
+      <form class="composer" id="query-form">
+        <textarea id="query-input" rows="1" placeholder="Ask a question about your documents..." aria-label="Question"></textarea>
+        <div class="composer-footer"><span>Hybrid retrieval · grounded answers</span><label class="source-toggle"><input id="source-toggle" type="checkbox"> <span>Show sources</span></label><button class="send-button" type="submit" title="Send question" aria-label="Send question">↑</button></div>
+      </form>
+      <p class="login-hint" id="login-hint">Sign in to unlock the assistant.</p>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="auth-modal" hidden>
+    <section class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <button class="modal-close" id="modal-close" aria-label="Close">×</button>
+      <p class="eyebrow">Your workspace</p><h2 id="auth-title">Welcome back.</h2><p class="modal-copy">Sign in to ask grounded questions and keep your query history connected.</p>
+      <form id="auth-form"><label>Email<input id="email-input" type="email" required autocomplete="email"></label><label>Password<input id="password-input" type="password" required minlength="6" autocomplete="current-password"></label><button class="primary-button" type="submit" id="auth-submit">Sign in <span>→</span></button></form>
+      <button class="switch-auth" id="switch-auth" type="button">Need an account? <strong>Create one</strong></button><p class="form-error" id="auth-error" aria-live="polite"></p>
+    </section>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
