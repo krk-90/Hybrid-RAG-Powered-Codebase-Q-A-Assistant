@@ -373,6 +373,26 @@ Check Chroma, Google, and Groq credentials. The backend initializes external ser
 6. Update the frontend `API_BASE` for the deployed backend URL.
 7. Verify `/health`, signup, login, document ingestion, and authenticated queries after deployment.
 
+# working website:
+
+![chatbot demo](screen_shots/deployed_appss/dss3.png)
+![chatbot demo](screen_shots/deployed_appss/dss5.png)
+
+
+## local development:
+
+![chatbot demo](screen_shots/011.png)
+![chatbot demo](screen_shots/012.png)
+![chatbot demo](screen_shots/013.png)
+![chatbot demo](screen_shots/014.png)
+![chatbot demo](screen_shots/lstracing.png)
+![chatbot demo](screen_shots/fastapi_ss/fa01.png)
+![chatbot demo](screen_shots/fastapi_ss/fa02.png)
+![chatbot demo](screen_shots/fastapi_ss/fa03.png)
+![chatbot demo](screen_shots/fastapi_ss/fa04.png)
+![chatbot demo](screen_shots/deployed_appss/dss.png)
+
+
 ## License
 
 See [LICENSE](LICENSE).
