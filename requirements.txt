@@ -35,3 +35,10 @@ uvicorn[standard]>=0.30.0
 slowapi>=0.1.9
 python-multipart>=0.0.9
 pydantic>=2.7.0
+
+# --- Database (Postgres async, used by Database/relational_db.py & models.py) ---
+sqlalchemy>=2.0.0
+asyncpg>=0.29.0
+
+# --- Auth (Supabase, used by auth/oauth.py & auth/security.py) ---
+supabase>=2.0.0
