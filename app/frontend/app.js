@@ -1,4 +1,4 @@
-const API_BASE = window.THREADLINE_API_URL || 'http://localhost:8001';
+const API_BASE = window.THREADLINE_API_URL || '';
 const state = { token: localStorage.getItem('threadline_token'), mode: 'login', busy: false };
 const $ = (id) => document.getElementById(id);
 
