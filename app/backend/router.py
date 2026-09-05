@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 from pathlib import Path
 from typing import Optional,List
 from fastapi import FastAPI,HTTPException,Request,UploadFile,File, logger, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel,Field
 from slowapi import Limiter ,_rate_limit_exceeded_handler
@@ -15,6 +16,7 @@ from slowapi.util import get_remote_address
 from contextlib import asynccontextmanager
 from langsmith import traceable
 load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / ".env", override=True)
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
 os.environ.setdefault("LANGCHAIN_PROJECT", "rag-tracing")
 
@@ -77,6 +79,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".png", ".jpg", ".txt"}
 
@@ -104,8 +107,8 @@ def _refresh_rag_chain():
     state["rag_chain"] = get_rag_chain(state["llm_model"],state["retreiver"])
 
 @app.get("/") 
-def endpoint():
-    return {"message":"your chatbot is ready for chat."}
+def serve_frontend():
+    return FileResponse(FRONTEND_DIR / "index.html")
 
 @app.get("/health")
 @traceable(name="health")
