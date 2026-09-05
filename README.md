@@ -1,250 +1,378 @@
-# Hybrid RAG Pipeline
+# Code Assistant: Hybrid RAG
 
-A hybrid Retrieval-Augmented Generation (RAG) system that combines **dense vector search** (Chroma Cloud + Google Gemini embeddings) with **sparse keyword search** (BM25), fused via an ensemble retriever and sharpened with a **cross-encoder reranker**. Answers are generated with a Groq-hosted LLM (`openai/gpt-oss-20b`) and traced end-to-end with LangSmith.
+Code Assistant is a Retrieval-Augmented Generation (RAG) application for asking questions about an indexed codebase or document collection. It combines dense vector search, sparse keyword search, cross-encoder reranking, and an LLM-generated answer with optional source snippets.
 
-## Architecture
+The project includes:
 
+- A FastAPI backend for authentication, ingestion, health checks, and question answering.
+- A static HTML/CSS/JavaScript frontend in `app/frontend`.
+- Chroma Cloud for vector storage.
+- Google Gemini embeddings.
+- BM25 keyword retrieval and a cross-encoder reranker.
+- Groq-hosted LLM generation.
+- Supabase authentication and an Aiven PostgreSQL database for user and query records.
+- Optional LangSmith tracing.
+
+## How It Works
+
+```text
+Document upload
+      |
+      v
+Load and chunk documents
+      |
+      v
+Gemini embeddings ---> Chroma Cloud
+      |                      |
+      +---- BM25 -----------+
+                 |
+                 v
+        Hybrid ensemble retrieval
+                 |
+                 v
+          Cross-encoder reranking
+                 |
+                 v
+          Groq LLM answer generation
 ```
-                    ┌─────────────────┐
-   documents  ─────▶│  processing.py   │  load + chunk documents
- (pdf/docx/img/txt)  └────────┬─────────┘
-                              ▼
-                    ┌─────────────────┐
-                    │  chroma_db.py    │  embed (Gemini) + upsert
-                    └────────┬─────────┘
-                              ▼
-                    ┌──────────────────┐        ┌───────────────┐
-                    │ Chroma Cloud      │◀──────▶│  retrieval.py  │
-                    │ (vector store)    │        │  BM25 + Vector │
-                    └──────────────────┘        │  EnsembleRetr. │
-                                                  └───────┬────────┘
-                                                          ▼
-                                                  ┌───────────────┐
-                                                  │  rerank.py     │
-                                                  │  Cross-Encoder │
-                                                  └───────┬────────┘
-                                                          ▼
-                                                  ┌───────────────┐
-                                                  │  main.py       │
-                                                  │  Groq LLM +    │
-                                                  │  RAG chain     │
-                                                  └───────────────┘
-```
+
+For a question, the retriever combines semantic vector results and keyword results, reranks the candidates, and sends the relevant context to the LLM. The API can return the answer with the retrieved source snippets.
 
 ## Project Structure
 
-```
-hybrid_rag_pipeline/
-├── Database/
-│   └── chroma_db.py        # Chroma Cloud client + chunk embedding/storage
-├── ingest/
-│   └── processing.py        # Document loading + chunking (CLI: ingest)
-├── rag/
-│   └── retriever/
-│       ├── retrieval.py     # Vector + BM25 ensemble retrieval (CLI: query/inspect)
-│       └── rerank.py        # Cross-encoder reranking wrapper
+```text
+Hybrid_rag/
 ├── app/
-│   └── backend/
-│       └── router.py        # FastAPI app: /health, /ingest, /query, /query/stream
-└── main.py                  # RAG chain assembly + query CLI
+│   ├── backend/
+│   │   ├── router.py             # FastAPI application and API routes
+│   │   └── auth/
+│   │       ├── oauth.py          # Signup, login, and current-user routes
+│   │       └── security.py       # Supabase bearer-token validation
+│   └── frontend/
+│       ├── index.html            # Static chat interface
+│       ├── styles.css            # Frontend styling
+│       └── app.js                # API, auth, upload, and chat client
+├── hybrid_rag_pipeline/
+│   ├── Database/
+│   │   ├── chroma_db.py          # Chroma Cloud client and chunk storage
+│   │   ├── models.py             # SQLAlchemy models
+│   │   └── relational_db.py      # PostgreSQL engine and sessions
+│   ├── ingest/
+│   │   └── processing.py         # Document loading and chunking
+│   └── rag/
+│       ├── generation/main.py    # LLM and RAG chain setup
+│       └── retriever/
+│           ├── retrieval.py      # Vector + BM25 retrieval
+│           └── rerank.py         # Cross-encoder reranking
+├── requirements.txt
+├── .env.example
+└── readme.md
 ```
-
-> Note: import paths in the source (`hybrid_rag_pipeline.Database.chroma_db`, `hybrid_rag_pipeline.ingest.processing`, `hybrid_rag_pipeline.rag.retriever.retrieval`, `hybrid_rag_pipeline.rag.retriever.rerank`) assume this package layout — adjust `PYTHONPATH` or install the package accordingly if your layout differs.
 
 ## Requirements
 
-- Python 3.14
-- A [Chroma Cloud](https://www.trychroma.com/) account (API key, tenant, database)
-- A Google AI Studio API key (for `gemini-embedding-001`)
-- A [Groq](https://groq.com/) API key (for `openai/gpt-oss-20b` inference)
-- (Optional) A LangSmith API key for tracing
+- Python 3.14 or a compatible recent Python version.
+- A Chroma Cloud account.
+- A Google AI Studio API key.
+- A Groq API key.
+- A Supabase project for authentication.
+- A PostgreSQL database, such as Aiven PostgreSQL.
+- Optional: a LangSmith account for tracing.
 
 ## Installation
 
-```bash
+From the project root:
+
+```powershell
+cd "C:\Users\<user>\OneDrive\Desktop\Hybrid_rag"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Core dependencies used across the codebase:
+The database and authentication modules also require these packages if they are not already installed:
 
-```
-chromadb
-langchain-chroma
-langchain-google-genai
-langchain-groq
-langchain-classic
-langchain-community
-langchain-text-splitters
-langchain-core
-langsmith
-python-dotenv
-unstructured
+```powershell
+pip install sqlalchemy asyncpg supabase
 ```
 
-## Environment Variables
+On Windows, if PowerShell blocks activation, run this in the current terminal before activating:
 
-Create a `.env` file (one per module directory, or a shared one on `PYTHONPATH`) with:
-
-| Variable | Required | Description |
-|---|---|---|
-| `CHROMA_API_KEY` | Yes | Chroma Cloud API key |
-| `CHROMA_TENANT` | Yes | Chroma Cloud tenant ID |
-| `CHROMA_DATABASE` | Yes | Chroma Cloud database name |
-| `GOOGLE_API_KEY` | Yes | Google API key for Gemini embeddings |
-| `GROQ_API_KEY` | Yes (for querying) | Groq API key for LLM inference |
-| `CHROMA_COLLECTION` | No | Collection name (default: `document_embed`) |
-| `RERANKER_MODEL` | No | Cross-encoder model (default: `cross-encoder/ms-marco-MiniLM-L-6-v2`) |
-| `LANGCHAIN_API_KEY` / `LANGSMITH_API_KEY` | No | Enables LangSmith tracing |
-| `LANGCHAIN_TRACING_V2` | No | Defaults to `true` |
-| `LANGCHAIN_PROJECT` | No | Defaults to `rag-tracing` |
-
-## Usage
-
-### 1. Ingest documents (`processing.py`)
-
-Loads documents (PDF, DOCX, PNG/JPG, TXT — single file or a directory), splits them into chunks, embeds them with Gemini, and stores them in Chroma Cloud.
-
-```bash
-python -m hybrid_rag_pipeline.ingest.processing --path <file_or_folder> [options]
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 ```
 
-**Arguments:**
+## Environment Configuration
 
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--path` | str | *required* | File or folder to ingest. Folders are scanned for `*.pdf`, `*.docx`, `*.png`, `*.jpg`, `*.txt`. |
-| `--chunk_size` | int | `800` | Max characters per chunk. |
-| `--over_lap` | int | `150` | Character overlap between consecutive chunks. |
+Create `.env` in the project root. Start from `.env.example`, then replace each placeholder with a real value.
 
-**Examples:**
+```env
+GOOGLE_API_KEY=your_google_api_key
+GROQ_API_KEY=your_groq_api_key
 
-```bash
-# Ingest a single PDF
-python -m hybrid_rag_pipeline.ingest.processing --path ./docs/manual.pdf
+CHROMA_API_KEY=your_chroma_api_key
+CHROMA_TENANT=your_chroma_tenant
+CHROMA_DATABASE=your_chroma_database
+CHROMA_COLLECTION=document_embed
 
-# Ingest an entire folder with custom chunking
-python -m hybrid_rag_pipeline.ingest.processing --path ./docs --chunk_size 1000 --over_lap 200
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+
+DATABASE_URL=postgresql+asyncpg://username:password@host:port/database?sslmode=require
+
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=rag-tracing
+LANGCHAIN_API_KEY=your_langsmith_api_key
+
+CORS_ALLOWED_ORIGINS=http://127.0.0.1:5500,http://localhost:5500
 ```
 
-### 2. Query / inspect the vector store (`retrieval.py`)
+For an Aiven PostgreSQL URL, the application accepts the regular Aiven `sslmode=require` form and converts it for `asyncpg` internally. The URL must use the `postgresql+asyncpg` SQLAlchemy driver:
 
-Runs hybrid retrieval (Chroma vector search + BM25) with optional cross-encoder reranking, or inspects raw stored documents.
-
-```bash
-python -m hybrid_rag_pipeline.rag.retriever.retrieval --query "<question>" [options]
-python -m hybrid_rag_pipeline.rag.retriever.retrieval --inspect [options]
+```env
+DATABASE_URL=postgresql+asyncpg://avnadmin:YOUR_PASSWORD@YOUR_AIVEN_HOST:YOUR_PORT/defaultdb?sslmode=require
 ```
 
-**Arguments:**
+Never commit `.env` or expose database passwords and API keys. Rotate credentials that have been shared publicly.
 
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--query` | str | `None` | Query text to retrieve relevant chunks for. Required unless `--inspect` is set. |
-| `--k` | int | `4` | Number of final results returned after reranking. |
-| `--fetch-k` | int | `4*k` (min `20`) | Number of candidates pulled from vector + BM25 before reranking. |
-| `--no-rerank` | flag | `False` | Skip reranking and return raw ensemble retriever results. |
-| `--refresh-bm25` | flag | `False` | Force-refresh the in-memory BM25 index from Chroma before querying. |
-| `--inspect` | flag | `False` | Print stored documents/metadata instead of running a query. |
-| `--limit` | int | `None` | Limit number of documents fetched when using `--inspect`. |
-| `--json` | flag | `False` | Output results as JSON instead of pretty-printed text. |
+## Start Locally
 
-**Examples:**
+### 1. Start the backend
 
-```bash
-# Basic hybrid + reranked query
-python -m hybrid_rag_pipeline.rag.retriever.retrieval --query "how does authentication work?"
+Use port `8000`, which is the frontend default:
 
-# Get JSON output, top 6 results, no reranking
-python -m hybrid_rag_pipeline.rag.retriever.retrieval --query "auth flow" --k 6 --no-rerank --json
+```powershell
+cd "C:\Users\<user>\OneDrive\Desktop\Hybrid_rag"
+.\.venv\Scripts\Activate.ps1
+uvicorn app.backend.router:app --reload --host 127.0.0.1 --port 8000
+```
 
-# Inspect the first 20 stored documents
+The backend performs database initialization and loads the LLM, Chroma client, retriever, and RAG chain during startup. A failed database connection or missing provider credential will prevent startup.
+
+### 2. Start the frontend
+
+The frontend is static and does not use `npm start` or require a `package.json`.
+
+From a second terminal:
+
+```powershell
+cd "C:\Users\<user>\OneDrive\Desktop\Hybrid_rag\app\frontend"
+python -m http.server 5500
+```
+
+Open:
+
+```text
+http://127.0.0.1:5500/
+```
+
+VS Code Live Server can also serve `app/frontend/index.html`. If the backend runs on another port, update `API_BASE` at the top of `app/frontend/app.js`:
+
+```javascript
+const API_BASE = 'http://localhost:8001';
+```
+
+### 3. Verify the backend
+
+Open these URLs:
+
+- `http://127.0.0.1:8000/` - service welcome response.
+- `http://127.0.0.1:8000/health` - LLM, retriever, and RAG readiness.
+- `http://127.0.0.1:8000/docs` - interactive Swagger API documentation.
+
+The health response should contain `true` for all three readiness fields before asking questions.
+
+## Frontend Features
+
+The Code Assistant frontend supports:
+
+- Email/password signup and login through Supabase.
+- Persistent access-token storage in browser local storage.
+- Logout and current-user restoration.
+- Pipeline health status.
+- Uploading PDF, DOCX, PNG, JPG, and TXT files.
+- Asking authenticated questions.
+- Optional retrieved-source display.
+- Responsive desktop and mobile layouts.
+
+The frontend sends API requests to `http://localhost:8000` by default. The backend CORS configuration must include the frontend origin.
+
+## API Reference
+
+### `GET /`
+
+Returns a simple service message.
+
+### `GET /health`
+
+Returns readiness information:
+
+```json
+{
+  "llm_ready": true,
+  "retriever_ready": true,
+  "rag_chain_ready": true
+}
+```
+
+### `POST /auth/signup`
+
+Creates a Supabase account.
+
+```json
+{
+  "email": "user@example.com",
+  "password": "strong-password"
+}
+```
+
+Depending on Supabase email-confirmation settings, the response may contain an access token immediately or require email confirmation first.
+
+### `POST /auth/login`
+
+Signs in a user and returns a bearer token.
+
+```json
+{
+  "email": "user@example.com",
+  "password": "strong-password"
+}
+```
+
+Use the returned token on protected requests:
+
+```text
+Authorization: Bearer <access_token>
+```
+
+### `GET /auth/me`
+
+Returns the authenticated Supabase user. Requires a bearer token.
+
+### `POST /ingest`
+
+Uploads and indexes one supported file. Supported extensions are `.pdf`, `.docx`, `.png`, `.jpg`, and `.txt`.
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/ingest" -F "file=@.\docs\manual.pdf"
+```
+
+The response includes the filename and number of stored chunks. Ingestion refreshes the BM25 index and RAG chain afterward.
+
+### `POST /query`
+
+Asks an authenticated question.
+
+```json
+{
+  "query": "How does authentication work?",
+  "k": 4,
+  "show_sources": true
+}
+```
+
+Example response:
+
+```json
+{
+  "answer": "...",
+  "sources": [
+    {
+      "source": "auth/security.py",
+      "page": null,
+      "snippet": "..."
+    }
+  ]
+}
+```
+
+### `POST /query/stream`
+
+Streams answer chunks as Server-Sent Events. It requires the same bearer token and request body as `/query`.
+
+## Command-Line Usage
+
+### Ingest documents
+
+```powershell
+python -m hybrid_rag_pipeline.ingest.processing --path .\docs\manual.pdf
+python -m hybrid_rag_pipeline.ingest.processing --path .\docs --chunk_size 1000 --over_lap 200
+```
+
+### Inspect or query retrieval
+
+```powershell
 python -m hybrid_rag_pipeline.rag.retriever.retrieval --inspect --limit 20
+python -m hybrid_rag_pipeline.rag.retriever.retrieval --query "authentication flow" --k 6 --json
 ```
 
-### 3. Ask questions end-to-end (`main.py`)
+Useful retrieval options include `--no-rerank`, `--refresh-bm25`, `--fetch-k`, `--limit`, and `--json`.
 
-Runs the full RAG chain: retrieval → reranking → Groq LLM generation, streaming the answer to stdout.
+### Ask through the RAG chain
 
-```bash
-python -m hybrid_rag_pipeline.main "<your question>" [options]
+```powershell
+python -m hybrid_rag_pipeline.rag.generation.main "Explain the reranking step"
+python -m hybrid_rag_pipeline.rag.generation.main "How does auth work?" --show-sources
 ```
 
-**Arguments:**
+## Troubleshooting
 
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `query` | str (positional) | *required* | Your question. |
-| `--show-sources` | flag | `False` | Print the retrieved source chunks after the answer. |
+### `npm start` reports that `package.json` is missing
 
-**Examples:**
+This is a static frontend, not a React or Node application. Use Python HTTP Server or VS Code Live Server instead.
 
-```bash
-# Ask a question
-python -m hybrid_rag_pipeline.main "What does the retrieve function do?"
+### The page shows `Pipeline unavailable`
 
-# Ask and show the retrieved source chunks
-python -m hybrid_rag_pipeline.main "Explain the reranking step" --show-sources
+Check that the backend is running, the frontend calls the same port, and `/health` is reachable. Confirm that `CORS_ALLOWED_ORIGINS` includes `http://127.0.0.1:5500`.
+
+### PostgreSQL connection timeout
+
+Confirm the Aiven service is running, copy the current connection details, and test the configured host and port:
+
+```powershell
+Test-NetConnection YOUR_DATABASE_HOST -Port YOUR_DATABASE_PORT
 ```
 
-## Pipeline Details
+If `TcpTestSucceeded` is `False`, check Aiven network access, public connectivity, firewall rules, and the database endpoint.
 
-- **Chunking**: `RecursiveCharacterTextSplitter` with `\n\n`/`\n` separators, configurable size/overlap.
-- **Embeddings**: Google `gemini-embedding-001` via `langchain-google-genai`.
-- **Vector store**: Chroma Cloud, deduplicated using SHA-256 hashes of chunk content as document IDs.
-- **Hybrid retrieval**: `EnsembleRetriever` combining Chroma vector search (weight `0.4`) and `BM25Retriever` (weight `0.6`).
-- **Reranking**: `CrossEncoderReranker` (`cross-encoder/ms-marco-MiniLM-L-6-v2` by default) via `ContextualCompressionRetriever`.
-- **Generation**: Groq `openai/gpt-oss-20b`, temperature `0.3`, streaming enabled, wrapped in a "don't hallucinate" prompt template.
-- **Observability**: All major stages (`load_docs`, `chunk_docs`, `get_vector`, `retrieve`, `ask_streaming`, etc.) are decorated with `@traceable` for LangSmith tracing.
+### `asyncpg` rejects `sslmode`
 
-## FastAPI Service Layer
+Use `postgresql+asyncpg` in `DATABASE_URL`. The project converts `sslmode=require` to the `asyncpg`-compatible `ssl=require` form before creating the engine.
 
-A REST API wrapping ingestion and querying is now available (`app/backend/router.py`), exposing this pipeline over HTTP instead of CLI-only usage:
+### The API fails while importing Supabase
 
-- `GET /health` — readiness check for the LLM/retriever.
-- `POST /ingest` — upload a file (`pdf`/`docx`/`png`/`jpg`/`txt`), chunk it, embed it, and store it in Chroma; refreshes the BM25 cache afterward. Rate-limited to 5/minute via `slowapi`.
-- `POST /query` — ask a question against the RAG chain, optionally returning source chunks. Rate-limited to 20/minute.
-- `POST /query/stream` — same as `/query` but streams the answer as Server-Sent Events.
-- LLM, retriever, and RAG chain are loaded once at startup via a `lifespan` context manager and reused across requests.
+Check `SUPABASE_URL` and `SUPABASE_ANON_KEY`, and install the `supabase` package in the active virtual environment.
 
-**Still to do:** authentication, a persistent job queue for large ingestion batches, a WebSocket alternative to SSE, and more structured error handling for malformed uploads.
+### The API fails during startup while loading the RAG chain
 
-Run it locally with:
+Check Chroma, Google, and Groq credentials. The backend initializes external services during application startup, so missing provider credentials can stop the server before it accepts requests.
 
-```bash
-pip install fastapi uvicorn slowapi python-multipart
-uvicorn app.backend.router:app --reload --port 8000
-```
+## Rate Limits and Operational Notes
 
-## Notes & Caveats
+- Ingestion is limited to 5 requests per minute.
+- Query endpoints are limited to 10 requests per minute.
+- The BM25 index is held in process memory and is refreshed after ingestion.
+- Startup loads the model and retriever once and reuses them across requests.
+- Large ingestion jobs should eventually use a background job queue.
+- The current streaming endpoint uses Server-Sent Events; a WebSocket alternative is not implemented.
+- Do not expose the development server directly to the public internet without production authentication, HTTPS, secret management, and a production process manager.
 
-- `retrieval.py`'s BM25 index is built by pulling **all** stored documents from Chroma into memory (`_get_bm25_docs`), cached process-wide; use `--refresh-bm25` after re-ingesting new documents.
-- `GROQ_API_KEY` must be set for `main.py`; it is not required for ingestion or retrieval-only usage.
-- Ensure `.env` is not committed — it holds cloud credentials for Chroma, Google, Groq, and LangSmith.
+## Deployment Checklist
 
-## latency
-- **average latency for FFTF:** ` 3.93s`
-- **final output is :**  `5.33s`
+1. Store secrets in the deployment provider's environment settings, not in the repository.
+2. Set `DATABASE_URL`, Supabase, Chroma, Google, and Groq variables in the backend service.
+3. Set `CORS_ALLOWED_ORIGINS` to the deployed frontend origin.
+4. Run the backend with a production process command such as:
 
-## Screenshots
+   ```bash
+   uvicorn app.backend.router:app --host 0.0.0.0 --port $PORT
+   ```
 
-CLI in action — ingestion, retrieval, and generation:
+5. Serve `app/frontend` from a static hosting provider.
+6. Update the frontend `API_BASE` for the deployed backend URL.
+7. Verify `/health`, signup, login, document ingestion, and authenticated queries after deployment.
 
-![chatbot demo](screen_shots/011.png)
-![chatbot demo](screen_shots/012.png)
-![chatbot demo](screen_shots/013.png)
-![chatbot demo](screen_shots/014.png)
-![chatbot demo](screen_shots/lstracing.png)
+## License
 
-FastAPI service in action:
-
-![fastapi demo](screen_shots/fastapi_ss/fa01.png)
-![fastapi demo](screen_shots/fastapi_ss/fa02.png)
-![fastapi demo](screen_shots/fastapi_ss/fa03.png)
-![fastapi demo](screen_shots/fastapi_ss/fa04.png)
-
-deployed on railway:
-
-![fastapi demo](screen_shots/deployed_apiss/dfss01.png)
-![fastapi demo](screen_shots/deployed_apiss/dfss02.png)
-![fastapi demo](screen_shots/deployed_apiss/dfss03.png)
-![fastapi demo](screen_shots/deployed_apiss/dfss04.png)
+See [LICENSE](LICENSE).
